@@ -5,25 +5,27 @@ import tensorflow as tf
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras import layers, models, optimizers, callbacks, Model, Input
 from tensorflow.keras.utils import to_categorical
+import random
+import os
 
 from src.data_loader import BloodMNISTDataLoader
 from src.NN_model import ResNet18
 from src.accuracy_by_data_size import AccuracyByDataSize
 from src.self_trainig_model import SelfTrainingModel
-import random
-import os
 
+
+# === Download data === #
 loader = BloodMNISTDataLoader()
 loader.show_sample_images(n=10, dataset="test")
 loader.plot_label_histograms()
 plt.show()
 
 print('ok')
-# Dane dostępne jako np.
 X_train, y_train = loader.X_train, loader.y_train
 X_val, y_val = loader.X_val, loader.y_val
 X_test, y_test = loader.X_test, loader.y_test
 
+# === PLot accuracu vs data size === #
 '''
 accuracy_model = AccuracyByDataSize(X_train, y_train, X_val, y_val, X_test, y_test, ResNet18, min_epochs=35, max_epochs=80, repetitions=5)
 sizes = [0.05, 0.1, 0.25, 0.5, 0.75, 1.0]
@@ -31,7 +33,7 @@ sizes = [0.05, 0.1, 0.25, 0.5, 0.75, 1.0]
 means, stds = accuracy_model.plot_accuracy_vs_data_size(sizes)
 '''
 
-
+# === Semi-supervised leraning ==== #
 trainer = SelfTrainingModel(model_NN=ResNet18, num_classes=8, initial_ratio=0.1, min_epochs=35, max_epochs=80)
 final_model = trainer.train(X_train, y_train, X_val, y_val)
 
