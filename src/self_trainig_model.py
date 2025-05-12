@@ -174,5 +174,5 @@ class SelfTrainingModel:
 
             round_num += 1
 
-        print("Training completed.")
+        print("Training completed")
         return model
