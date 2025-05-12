@@ -1,0 +1,154 @@
+'''
+train_dataset = BloodMNIST(split="train", download=True, transform=None)
+test_dataset = BloodMNIST(split="test", download=True, transform=None)
+val_dataset = BloodMNIST(split="val", download=True, transform=None)
+print(train_dataset)
+print(test_dataset)
+print(val_dataset)
+
+def split_dataset(dataset):
+    X = dataset.imgs
+    y = dataset.labels.squeeze()
+    #y = keras.utils.to_categorical(y, 8)
+    return X, y
+
+def normalize_reshape_data(X):
+    X = X.astype("float32") / 255.0
+    X = X.reshape(-1, 28, 28, 3) 
+    return X
+
+X_train, y_train = split_dataset(train_dataset)
+X_val, y_val = split_dataset(val_dataset)
+X_test, y_test = split_dataset(test_dataset)
+
+print("X_train shape:", X_train.shape, "y_train shape:", y_train.shape)
+print("X_val shape:", X_val.shape, "y_val shape:", y_val.shape)
+print("X_test shape:", X_test.shape, "y_test shape:", y_test.shape)
+
+x = 10
+plt.figure(figsize=(x, 2))
+for i in range(x):
+    plt.subplot(1, x, i+1)
+    plt.imshow(X_test[i], cmap='gray')
+    plt.title(f"Label: {y_test[i]}")
+    plt.axis('off')
+
+plt.show()
+
+unique_train, counts_train = np.unique(y_train, return_counts=True)
+print("Unique values - train:", unique_train)
+print("Counts - train:", counts_train)
+
+unique_val, counts_val = np.unique(y_val, return_counts=True)
+print("Unique values - val:", unique_val)
+print("Counts - val:", counts_val)
+
+unique_test, counts_test = np.unique(y_test, return_counts=True)
+print("Unique values - test:", unique_test)
+print("Counts - test:", counts_test)
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))  # 1 wiersz, 3 kolumny
+
+axes[0].bar(unique_train, counts_train, color='blue')
+axes[0].set_title("Training set")
+axes[0].set_xlabel("Class")
+axes[0].set_ylabel("Count")
+
+# Histogram for the validation set
+axes[1].bar(unique_val, counts_val, color='green')
+axes[1].set_title("Validation set")
+axes[1].set_xlabel("Class")
+
+# Histogram for the test set
+axes[2].bar(unique_test, counts_test, color='red')
+axes[2].set_title("Test set")
+axes[2].set_xlabel("Class")
+
+plt.tight_layout()
+plt.show()
+
+y_train = keras.utils.to_categorical(y_train, 8)
+y_val = keras.utils.to_categorical(y_val, 8)
+y_test = keras.utils.to_categorical(y_test, 8)
+print(y_train[0])
+
+
+X_train = normalize_reshape_data(X_train)
+X_val = normalize_reshape_data(X_val)
+X_test = normalize_reshape_data(X_test)
+print(X_train[0])
+'''
+
+
+from tensorflow.keras import layers, Model, Input
+
+def ResNet_block(input):
+    x = layers.Conv2D(filters = 32, kernel_size = (3, 3), strides=(1, 1), padding='same')(input)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x) # layers.Activation('relu')
+
+    x = layers.Conv2D(filters = 32, kernel_size = (3, 3), strides=(1, 1), padding='same')(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+
+    x = layers.Conv2D(filters = 32, kernel_size = (3, 3), strides=(1, 1), padding='same')(x)
+    x = layers.BatchNormalization()(x)
+
+    x = layers.Add()([x, input])
+    x = layers.ReLU()(x)
+
+    return x
+i
+def ResNet_model(input_shape = (28,28,3), num_blocks = 4, num_class = 8):
+    inputs = Input(shape=input_shape)
+    x = layers.Conv2D(filters = 32, kernel_size = (3, 3), strides=(1, 1), padding='same')(inputs)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+
+    for _ in range(num_blocks):
+        x = ResNet_block(x)
+
+    x = layers.GlobalAveragePooling2D()(x) # or layers.Flatten()
+    x = layers.Dense(units = 64, activation='relu')(x)
+    x = layers.Dropout(0.5)(x)
+    x = layers.Dense(units = 32, activation='relu')(x)
+    x = layers.Dropout(0.3)(x)
+    outputs = layers.Dense(units = num_class, activation='softmax')(x)
+
+    model = Model(inputs, outputs, name="ResNet_Model")
+
+    model.compile(
+        optimizer=keras.optimizers.Adam(learning_rate=0.0001),
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
+    
+    return model
+
+
+
+def CNN_model(input_shape=(28, 28, 3), num_classes=8):
+    model = keras.Sequential([
+        layers.Conv2D(filters = 64, kernel_size = (3, 3), activation='relu', padding='same', input_shape=input_shape),
+        layers.MaxPooling2D((2, 2)),
+        
+        layers.Conv2D(filters = 128, kernel_size = (3, 3), activation='relu', padding='same'),
+        layers.MaxPooling2D((2, 2)),
+        
+        layers.Conv2D(filters = 256, kernel_size = (3, 3), activation='relu', padding='same'),
+        layers.MaxPooling2D((2, 2)),
+        
+        layers.Flatten(),
+        layers.Dense(units = 2*256, activation='relu'),
+        layers.Dropout(rate = 0.4),
+        layers.Dense(units = 128, activation='relu'),
+        layers.Dense(units = num_classes, activation='softmax')
+    ])
+    
+    model.compile(
+        optimizer=keras.optimizers.Adam(learning_rate=0.001),
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
+    
+    return model

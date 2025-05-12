@@ -1,0 +1,271 @@
+              precision    recall  f1-score   support
+
+           0       0.95      0.25      0.39       244
+           1       0.98      0.98      0.98       624
+           2       1.00      0.70      0.82       311
+           3       0.57      0.83      0.67       579
+           4       0.88      0.74      0.80       243
+           5       0.78      0.63      0.70       284
+           6       0.88      0.98      0.92       666
+           7       0.95      1.00      0.97       470
+
+    accuracy                           0.83      3421
+   macro avg       0.87      0.76      0.78      3421
+weighted avg       0.86      0.83      0.82      3421
+
+[[ 60   1   0 155  10  15   3   0]
+ [  0 613   0   3   1   1   6   0]
+ [  1   0 218  36   9   1  19  27]
+ [  2   4   0 478   4  30  61   0]
+ [  0   0   0  58 179   2   4   0]
+ [  0   0   0 105   1 178   0   0]
+ [  0   6   1   7   0   0 652   0]
+ [  0   0   0   0   0   0   0 470]]
+
+
+'''
+train_dataset = BloodMNIST(split="train", download=True, transform=None)
+test_dataset = BloodMNIST(split="test", download=True, transform=None)
+val_dataset = BloodMNIST(split="val", download=True, transform=None)
+print(train_dataset)
+print(test_dataset)
+print(val_dataset)
+
+def split_dataset(dataset):
+    X = dataset.imgs
+    y = dataset.labels.squeeze()
+    #y = keras.utils.to_categorical(y, 8)
+    return X, y
+
+def normalize_reshape_data(X):
+    X = X.astype("float32") / 255.0
+    X = X.reshape(-1, 28, 28, 3) 
+    return X
+
+X_train, y_train = split_dataset(train_dataset)
+X_val, y_val = split_dataset(val_dataset)
+X_test, y_test = split_dataset(test_dataset)
+
+print("X_train shape:", X_train.shape, "y_train shape:", y_train.shape)
+print("X_val shape:", X_val.shape, "y_val shape:", y_val.shape)
+print("X_test shape:", X_test.shape, "y_test shape:", y_test.shape)
+
+x = 10
+plt.figure(figsize=(x, 2))
+for i in range(x):
+    plt.subplot(1, x, i+1)
+    plt.imshow(X_test[i], cmap='gray')
+    plt.title(f"Label: {y_test[i]}")
+    plt.axis('off')
+
+plt.show()
+
+unique_train, counts_train = np.unique(y_train, return_counts=True)
+print("Unique values - train:", unique_train)
+print("Counts - train:", counts_train)
+
+unique_val, counts_val = np.unique(y_val, return_counts=True)
+print("Unique values - val:", unique_val)
+print("Counts - val:", counts_val)
+
+unique_test, counts_test = np.unique(y_test, return_counts=True)
+print("Unique values - test:", unique_test)
+print("Counts - test:", counts_test)
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))  # 1 wiersz, 3 kolumny
+
+axes[0].bar(unique_train, counts_train, color='blue')
+axes[0].set_title("Training set")
+axes[0].set_xlabel("Class")
+axes[0].set_ylabel("Count")
+
+# Histogram for the validation set
+axes[1].bar(unique_val, counts_val, color='green')
+axes[1].set_title("Validation set")
+axes[1].set_xlabel("Class")
+
+# Histogram for the test set
+axes[2].bar(unique_test, counts_test, color='red')
+axes[2].set_title("Test set")
+axes[2].set_xlabel("Class")
+
+plt.tight_layout()
+plt.show()
+
+y_train = keras.utils.to_categorical(y_train, 8)
+y_val = keras.utils.to_categorical(y_val, 8)
+y_test = keras.utils.to_categorical(y_test, 8)
+print(y_train[0])
+
+
+X_train = normalize_reshape_data(X_train)
+X_val = normalize_reshape_data(X_val)
+X_test = normalize_reshape_data(X_test)
+print(X_train[0])
+'''
+
+
+from tensorflow.keras import layers, Model, Input
+
+def ResNet_block(input):
+    x = layers.Conv2D(filters = 32, kernel_size = (3, 3), strides=(1, 1), padding='same')(input)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x) # layers.Activation('relu')
+
+    x = layers.Conv2D(filters = 32, kernel_size = (3, 3), strides=(1, 1), padding='same')(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+
+    x = layers.Conv2D(filters = 32, kernel_size = (3, 3), strides=(1, 1), padding='same')(x)
+    x = layers.BatchNormalization()(x)
+
+    x = layers.Add()([x, input])
+    x = layers.ReLU()(x)
+
+    return x
+i
+def ResNet_model(input_shape = (28,28,3), num_blocks = 4, num_class = 8):
+    inputs = Input(shape=input_shape)
+    x = layers.Conv2D(filters = 32, kernel_size = (3, 3), strides=(1, 1), padding='same')(inputs)
+    x = layers.BatchNormalization()(x)
+    x = layers.ReLU()(x)
+
+    for _ in range(num_blocks):
+        x = ResNet_block(x)
+
+    x = layers.GlobalAveragePooling2D()(x) # or layers.Flatten()
+    x = layers.Dense(units = 64, activation='relu')(x)
+    x = layers.Dropout(0.5)(x)
+    x = layers.Dense(units = 32, activation='relu')(x)
+    x = layers.Dropout(0.3)(x)
+    outputs = layers.Dense(units = num_class, activation='softmax')(x)
+
+    model = Model(inputs, outputs, name="ResNet_Model")
+
+    model.compile(
+        optimizer=keras.optimizers.Adam(learning_rate=0.0001),
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
+    
+    return model
+
+
+
+def CNN_model(input_shape=(28, 28, 3), num_classes=8):
+    model = keras.Sequential([
+        layers.Conv2D(filters = 64, kernel_size = (3, 3), activation='relu', padding='same', input_shape=input_shape),
+        layers.MaxPooling2D((2, 2)),
+        
+        layers.Conv2D(filters = 128, kernel_size = (3, 3), activation='relu', padding='same'),
+        layers.MaxPooling2D((2, 2)),
+        
+        layers.Conv2D(filters = 256, kernel_size = (3, 3), activation='relu', padding='same'),
+        layers.MaxPooling2D((2, 2)),
+        
+        layers.Flatten(),
+        layers.Dense(units = 2*256, activation='relu'),
+        layers.Dropout(rate = 0.4),
+        layers.Dense(units = 128, activation='relu'),
+        layers.Dense(units = num_classes, activation='softmax')
+    ])
+    
+    model.compile(
+        optimizer=keras.optimizers.Adam(learning_rate=0.001),
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
+    
+    return model
+
+
+
+
+
+
+def get_random_subset(dataset, size):
+    X, y = dataset
+    indices = np.random.choice(X.shape[0], size=int(size * X.shape[0]), replace=False)
+    
+    X_subset = X[indices]
+    y_subset = y[indices]
+    
+    return X_subset, y_subset
+def trains_model_on_random_subset(X_train, y_train, X_val, y_val, X_test, y_test, size, repetitions: int = 1, epochs = 35):
+    results = []
+    for i in range(repetitions):
+        print("repetition: ", i)
+        X_train_subset, y_train_subset = get_random_subset((X_train, y_train), size)
+        X_val_subset, y_val_subset = get_random_subset((X_val, y_val), size)
+        X_test_subset, y_test_subset = get_random_subset((X_test, y_test), size)
+
+        '''
+        print('X_train_subset shape:', X_train_subset.shape)
+        print('y_train_subset shape:', y_train_subset.shape)
+        print('X_val_subset shape:', X_val_subset.shape)
+        print('y_val_subset shape:', y_val_subset.shape)
+        print('X_test_subset shape:', X_test_subset.shape)
+        print('y_test_subset shape:', y_test_subset.shape)
+        '''
+        
+        model = ResNet18()
+
+        # Callbacks
+        reduce_lr = ReduceLROnPlateau(
+            monitor='val_loss', 
+            factor=0.5, 
+            patience=10, 
+            min_lr=1e-6,
+            verbose = True
+        )
+        
+        #lr_schedule = callbacks.LearningRateScheduler(lambda epoch, lr: lr * 0.1 if epoch in [50, 75] else lr)
+        
+        early_stopping = callbacks.EarlyStopping(
+            monitor='val_accuracy', 
+            patience=40, 
+            restore_best_weights=True
+        )
+        
+        history = model.fit(X_train_subset, y_train_subset, 
+                            epochs=epochs, 
+                            batch_size=128, 
+                            validation_data=(X_val_subset, y_val_subset), 
+                            callbacks = [early_stopping,reduce_lr],
+                            verbose = True
+                           ) 
+        
+        test_loss, test_acc = model.evaluate(X_test_subset, y_test_subset)
+
+        results.append({
+            'iteration': i,
+            'test_accuracy': test_acc,
+            'history': history
+        })
+
+    print('ok')
+    return results
+
+start_time = time.time()
+subset_100 = trains_model_on_random_subset(X_train, y_train, X_val, y_val, X_test, y_test, size = 1.0, repetitions=5, epochs = epochs) # 100%
+end_time = time.time()
+print(f"Time: {(end_time - start_time):.3f} s")
+accuracies_100 = [result['test_accuracy'] for result in subset_100]
+mean_accuracy_100 = np.mean(accuracies_100)
+std_accuracy_100 = np.std(accuracies_100)
+
+print('mean_accuracy: ', mean_accuracy_100)
+print('std_accuracy: ', std_accuracy_100)
+
+
+start_time = time.time()
+subset_50 = trains_model_on_random_subset(X_train, y_train, X_val, y_val, X_test, y_test, size = 0.5, repetitions=5, epochs = 50) # 50%
+end_time = time.time()
+print(f"Time: {(end_time - start_time):.3f} s")
+
+accuracies_50 = [result['test_accuracy'] for result in subset_50]
+mean_accuracy_50 = np.mean(accuracies_50)
+std_accuracy_50 = np.std(accuracies_50)
+
+print('mean_accuracy: ', mean_accuracy_50)
+print('std_accuracy: ', std_accuracy_50)
