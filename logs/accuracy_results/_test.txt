@@ -1,0 +1,3 @@
+size	mean_accuracy	std_accuracy
+0.10	0.749	0.000
+0.25	0.862	0.000

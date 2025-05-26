@@ -1,10 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from tensorflow.keras.callbacks import ReduceLROnPlateau
+from src.callbacks import get_callbacks
 
 
 class AccuracyByDataSize:
-    def __init__(self, X_train, y_train, X_val, y_val, X_test, y_test, model_class, min_epochs=35, max_epochs=100, repetitions=5):
+    def __init__(self, X_train, y_train, X_val, y_val, X_test, y_test, model_class, min_epochs=35, max_epochs=100, repetitions=5, run_name = "_"):
         self.X_train = X_train
         self.y_train = y_train
         self.X_val = X_val
@@ -15,6 +15,7 @@ class AccuracyByDataSize:
         self.min_epochs = min_epochs
         self.max_epochs = max_epochs
         self.repetitions = repetitions
+        self.run_name = run_name
 
     def get_random_subset(self, dataset, size):
         X, y = dataset
@@ -30,22 +31,15 @@ class AccuracyByDataSize:
 
         print("Subset shape", X_train_subset.shape, y_train_subset.shape)
 
-        reduce_lr = ReduceLROnPlateau(
-                                        monitor='val_loss', 
-                                        factor=0.1, 
-                                        patience=5, 
-                                        min_lr=1e-6,
-                                        verbose = False
-                                        )
-
+        callbacks = get_callbacks(folder_name = "AccuracyByDataSize", run_name = self.run_name)
 
         model = self.model_class()
         history = model.fit(X_train_subset, y_train_subset, 
-                            epochs=self.calculate_epochs(size),
-                            batch_size=128, 
-                            validation_data=(self.X_val, self.y_val), # X_val_subset, y_val_subset
-                            callbacks= [reduce_lr],
-                            verbose=False)
+                            epochs = self.calculate_epochs(size),
+                            batch_size = 128, 
+                            validation_data = (self.X_val, self.y_val), # X_val_subset, y_val_subset
+                            callbacks = callbacks,
+                            verbose = False)
         
         print("Number of epochs :", self.calculate_epochs(size))
         
@@ -65,8 +59,8 @@ class AccuracyByDataSize:
             for _ in range(self.repetitions):
                 accuracy = self.train_model_on_random_subset(size)
                 accuracies_for_size.append(accuracy)
-            mean_accuracy = np.mean(accuracies_for_size)
-            std_accuracy = np.std(accuracies_for_size)
+            mean_accuracy = np.float32(np.mean(accuracies_for_size))
+            std_accuracy = np.float32(np.std(accuracies_for_size))
             means.append(mean_accuracy)
             stds.append(std_accuracy)
         return means, stds

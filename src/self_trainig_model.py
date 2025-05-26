@@ -1,13 +1,15 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.callbacks import ReduceLROnPlateau
 from sklearn.metrics import precision_recall_curve, auc
 from sklearn.model_selection import train_test_split
 from sklearn.utils.class_weight import compute_class_weight
 from scipy.stats import entropy
+import gc
+
+from src.callbacks import get_callbacks
 
 class SelfTrainingModel:
-    def __init__(self, model_NN, num_classes, initial_ratio = 0.05, threshold_strategy = 'f1', batch_size = 128, min_epochs=35, max_epochs=80):
+    def __init__(self, model_NN, num_classes, initial_ratio = 0.05, threshold_strategy = 'f1', batch_size = 128, min_epochs=35, max_epochs=80, run_name = "_"):
         self.model_NN = model_NN
         self.num_classes = num_classes
         self.initial_ratio = initial_ratio
@@ -16,6 +18,7 @@ class SelfTrainingModel:
         self.min_epochs = min_epochs
         self.max_epochs = max_epochs
         self.thresholds = None
+        self.run_name = run_name
 
         np.random.seed(42)
         tf.random.set_seed(42)
@@ -109,41 +112,45 @@ class SelfTrainingModel:
         return int(self.min_epochs + (self.max_epochs - self.min_epochs) * (1 - size))
 
     def train(self, X_train, y_train, X_val, y_val):
+        model = None
         subset_size = int(len(X_train) * self.initial_ratio)
-        #X_labeled, y_labeled, X_unlabeled, y_unlabeled = self.split_subset_and_rest(X_train, y_train, subset_size)
-        X_labeled, y_labeled, X_unlabeled, y_unlabeled = self.initial_balanced_split(X_train, y_train, subset_size)
+        X_labeled, y_labeled, X_unlabeled, y_unlabeled = self.split_subset_and_rest(X_train, y_train, subset_size)
+        #X_labeled, y_labeled, X_unlabeled, y_unlabeled = self.initial_balanced_split(X_train, y_train, subset_size)
         
         print("X_labeled shape :", X_labeled.shape)
         print("X_unlabeled shape :", X_unlabeled.shape)
 
         round_num = 1
-        while len(X_unlabeled) > 100:
+        while len(X_unlabeled) > 100: # 150 # 200
             print(f"\n=== Iteration {round_num}: Training on {len(X_labeled)} labeled samples ===")
 
             y_labeled_classes = np.argmax(y_labeled, axis=1) 
             class_weights_array = compute_class_weight(class_weight='balanced',
                                                        classes=np.arange(self.num_classes),
-                                                       y=y_labeled_classes)
+                                                       y=y_labeled_classes).astype(np.float32)
+            
             class_weights = dict(enumerate(class_weights_array))
             print("Class weights:", class_weights)
-        
-            reduce_lr = ReduceLROnPlateau(monitor='val_loss', 
-                                          factor=0.1, 
-                                          patience=5, 
-                                          min_lr=1e-6,
-                                          verbose = False
-                                          )
-        
+
+            callbacks = get_callbacks(folder_name = "fit", run_name = self.run_name)
+
             used_ratio = len(X_labeled) / len(X_train)
             no_of_epochs = self.calculate_epochs(used_ratio)
             print(no_of_epochs)
 
+            
+            
+            if model is not None:
+                del model
+            tf.keras.backend.clear_session()
+            gc.collect()
+            
             model = self.model_NN()
             history = model.fit(X_labeled, y_labeled,
                                   epochs=no_of_epochs,
                                   batch_size=self.batch_size,
                                   validation_data=(X_val, y_val),
-                                  callbacks=[reduce_lr],
+                                  callbacks=callbacks,
                                   class_weight=class_weights,
                                   verbose=False)
 
@@ -154,15 +161,10 @@ class SelfTrainingModel:
             y_probs = model.predict(X_val)
             self.thresholds = self.find_best_thresholds_per_class(y_val_labels, y_probs)
 
-            
-            if len(X_unlabeled) < int(len(X_train) * self.initial_ratio):
-                current_subset_size = len(X_unlabeled)
-            else:
-                current_subset_size = int(len(X_train) * self.initial_ratio)
-
+            subset_ratio = self.initial_ratio if self.initial_ratio > 0.20 else 0.2
+            current_subset_size = min(len(X_unlabeled), int(len(X_train) * subset_ratio))
             X_subset, _, X_unlabeled, _ = self.split_subset_and_rest(X_unlabeled, y_unlabeled, current_subset_size)
-
-            
+ 
             X_confident, y_confident, X_remaining = self.pseudo_label(model, X_subset)
             print(f"=== Added {len(X_confident)} confident samples, {len(X_subset) - len(X_confident)} remain unlabeled. ===")
 
